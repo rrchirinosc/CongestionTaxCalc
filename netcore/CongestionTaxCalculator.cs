@@ -14,24 +14,47 @@ public static class CongestionTaxCalculator
     {
         DateTime intervalStart = dates[0];
         int totalFee = 0;
+       
+        bool first = true;
+        int fee = 0, tempFee = 0;
+        int day = 0;
+        int month = 0;
+        int secs = 0, tempSecs = 0;
+
         foreach (DateTime date in dates)
         {
-            int nextFee = GetTollFee(date, vehicle);
-            int tempFee = GetTollFee(intervalStart, vehicle);
-
-            long diffInMillies = date.Millisecond - intervalStart.Millisecond;
-            long minutes = diffInMillies / 1000 / 60;
-
-            if (minutes <= 60)
+            // save day and month to qpply rule of passing more than once within 60 minutes
+            // (assuming year is always the same)
+            if(first == false)
             {
-                if (totalFee > 0) totalFee -= tempFee;
-                if (nextFee >= tempFee) tempFee = nextFee;
-                totalFee += tempFee;
+                if(day == date.Day && month == date.Month && fee != 0)
+                {
+                    tempSecs = date.Hour * 3600 + date.Minute * 60 + date.Second;
+                    if((tempSecs - secs) >= 00 && (tempSecs - secs) < 3600)
+                    {
+                        tempFee = GetTollFee(date, vehicle);
+                        fee = tempFee > fee ? fee : tempFee;
+                    }   
+                    else
+                        fee = GetTollFee(date, vehicle);
+                }
+                else
+                {
+                    fee = GetTollFee(date, vehicle);
+                }
+                day = date.Day;
+                month = date.Month;
+                secs = date.Hour * 3600 + date.Minute * 60 + date.Second;
+                totalFee += fee;
             }
             else
             {
-                totalFee += nextFee;
-            }
+                day = date.Day;
+                month = date.Month;
+                secs = date.Hour * 3600 + date.Minute * 60 + date.Second;
+                fee = GetTollFee(date, vehicle);
+                first = false;
+            }            
         }
         if (totalFee > 60) totalFee = 60;
         return totalFee;
@@ -41,8 +64,8 @@ public static class CongestionTaxCalculator
     {
         if (vehicle == null) return false;
         String vehicleType = vehicle.GetVehicleType();
-        return vehicleType.Equals(TollFreeVehicles.Motorcycle.ToString()) ||
-               vehicleType.Equals(TollFreeVehicles.Tractor.ToString()) ||
+        return vehicleType.Equals(TollFreeVehicles.Motorbike.ToString()) ||
+               vehicleType.Equals(TollFreeVehicles.Bus.ToString()) ||
                vehicleType.Equals(TollFreeVehicles.Emergency.ToString()) ||
                vehicleType.Equals(TollFreeVehicles.Diplomat.ToString()) ||
                vehicleType.Equals(TollFreeVehicles.Foreign.ToString()) ||
@@ -53,18 +76,18 @@ public static class CongestionTaxCalculator
     {
         if (IsTollFreeDate(date) || IsTollFreeVehicle(vehicle)) return 0;
 
-        int hour = date.Hour;
-        int minute = date.Minute;
+        int time = date.Hour * 3600 + date.Minute * 60 + date.Second;
 
-        if (hour == 6 && minute >= 0 && minute <= 29) return 8;
-        else if (hour == 6 && minute >= 30 && minute <= 59) return 13;
-        else if (hour == 7 && minute >= 0 && minute <= 59) return 18;
-        else if (hour == 8 && minute >= 0 && minute <= 29) return 13;
-        else if (hour >= 8 && hour <= 14 && minute >= 30 && minute <= 59) return 8;
-        else if (hour == 15 && minute >= 0 && minute <= 29) return 13;
-        else if (hour == 15 && minute >= 0 || hour == 16 && minute <= 59) return 18;
-        else if (hour == 17 && minute >= 0 && minute <= 59) return 13;
-        else if (hour == 18 && minute >= 0 && minute <= 29) return 8;
+        if (time >= 6 * 3600 && time <= 6 * 3600 + 29 * 60) return 8;
+        else if (time >= 6 * 3600 + 30 * 60 && time <= 6 * 3600 + 59 * 60) return 13;
+        else if (time >= 7 * 3600 && time <= 7 * 3600 + 59 * 60) return 18;
+        else if (time >= 8 * 3600 && time <= 8 * 3600 + 29 * 60) return 13;
+        else if (time >= 8 * 3600 + 30 * 60 && time <= 14 * 3600 + 59 * 60) return 8;
+        else if (time >= 15 * 3600 && time <= 15 * 3600 + 29 * 60) return 13;
+        else if (time >= 15 * 3600 + 30 * 60 && time <= 16 * 3600 + 59 * 60) return 18;
+        else if (time >= 17 * 3600 && time <= 17 * 3600 + 59 * 60) return 13;
+        else if (time >= 18 * 3600 && time <= 18 * 3600 + 29 * 60) return 8;
+        else if (time >= 18 * 3600 + 30 * 60) return 0;
         else return 0;
     }
 
@@ -95,8 +118,8 @@ public static class CongestionTaxCalculator
 
     private enum TollFreeVehicles
     {
-        Motorcycle = 0,
-        Tractor = 1,
+        Motorbike = 0,
+        Bus = 1,   // changed from tractor
         Emergency = 2,
         Diplomat = 3,
         Foreign = 4,
