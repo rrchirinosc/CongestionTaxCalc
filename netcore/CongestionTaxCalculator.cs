@@ -1,6 +1,6 @@
 using System;
 using congestion.calculator;
-public class CongestionTaxCalculator
+public static class CongestionTaxCalculator
 {
     /**
          * Calculate the total toll fee for one day
@@ -10,7 +10,7 @@ public class CongestionTaxCalculator
          * @return - the total congestion tax for that day
          */
 
-    public int GetTax(Vehicle vehicle, DateTime[] dates)
+    public static int GetTax(Vehicle vehicle, DateTime[] dates)
     {
         DateTime intervalStart = dates[0];
         int totalFee = 0;
@@ -37,7 +37,7 @@ public class CongestionTaxCalculator
         return totalFee;
     }
 
-    private bool IsTollFreeVehicle(Vehicle vehicle)
+    private static bool IsTollFreeVehicle(Vehicle vehicle)
     {
         if (vehicle == null) return false;
         String vehicleType = vehicle.GetVehicleType();
@@ -49,7 +49,7 @@ public class CongestionTaxCalculator
                vehicleType.Equals(TollFreeVehicles.Military.ToString());
     }
 
-    public int GetTollFee(DateTime date, Vehicle vehicle)
+    public static int GetTollFee(DateTime date, Vehicle vehicle)
     {
         if (IsTollFreeDate(date) || IsTollFreeVehicle(vehicle)) return 0;
 
@@ -68,7 +68,7 @@ public class CongestionTaxCalculator
         else return 0;
     }
 
-    private Boolean IsTollFreeDate(DateTime date)
+    private static Boolean IsTollFreeDate(DateTime date)
     {
         int year = date.Year;
         int month = date.Month;
