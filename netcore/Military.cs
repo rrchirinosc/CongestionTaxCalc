@@ -4,11 +4,11 @@ using System.Text;
 
 namespace congestion.calculator
 {
-    public class Foreign : Vehicle
+    public class Military : Vehicle
     {
         public String GetVehicleType()
         {
-            return "Foreign";
+            return "Military";
         }
     }
 }
