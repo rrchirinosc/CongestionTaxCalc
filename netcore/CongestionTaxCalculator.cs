@@ -1,7 +1,28 @@
 using System;
 using congestion.calculator;
+using System.Data.SqlClient;
+using congestion.calculator.DB.Repositories;
+using System.Collections.Generic;
+using congestion.calculator.DB.DTO;
+using System.Linq;
+using System.Globalization;
+
 public static class CongestionTaxCalculator
 {
+    private static SqlConnection _connection;
+
+    public static bool Init(string connectionString)
+    {
+        if (_connection == null)
+        {
+            _connection = new SqlConnection(connectionString);
+            _connection.Open();            
+        }
+
+        return _connection != null;
+        
+    }
+
     /**
          * Calculate the total toll fee for one day
          *
@@ -12,7 +33,6 @@ public static class CongestionTaxCalculator
 
     public static int GetTax(Vehicle vehicle, DateTime[] dates)
     {
-        DateTime intervalStart = dates[0];
         int totalFee = 0;
        
         bool first = true;
@@ -60,6 +80,116 @@ public static class CongestionTaxCalculator
         return totalFee;
     }
 
+    public static int GetTax(string vehicle)
+    {
+        TollRepository repo = new TollRepository();
+        List<VehicleDTO> vehicleID = repo.GetVehicleInfo(_connection, vehicle).ToList();
+
+        // Check if the vehicle is in the passing list
+        if (vehicleID.Count == 0)
+            return 0;
+
+        // set type of vehicle
+        Vehicle theVehicle;
+        switch (vehicleID[0].Type.ToLower())
+        {
+            case "bus":
+                theVehicle = new Bus();
+                break;
+            case "emergency":
+                theVehicle = new Emergency();
+                break;
+            case "foreign":
+                theVehicle = new Foreign();
+                break;
+            case "military":
+                theVehicle = new Military();
+                break;
+            case "diplomat":
+                theVehicle = new Diplomat();
+                break;
+            case "motorbike":
+                theVehicle = new Motorbike();
+                break;
+            case "car":
+            default:
+                theVehicle = new Car();     // an unknown vehicle taken as car
+                break;
+        }
+
+        // check if vehicle has free pass and if so return
+        if (IsTollFreeVehicle(theVehicle))
+            return 0;
+
+        List<TollDataDTO> list = repo.GetTollData(_connection, vehicle).ToList();
+
+        // sort list to aid same day calculations
+        try
+        {
+            list.Sort((a, b) => a.PassData.CompareTo(b.PassData));
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+
+
+        DateTime[] times = new DateTime[list.Count];
+        int i = 0;
+        foreach (TollDataDTO time in list)
+        {
+            DateTime t = DateTime.ParseExact(time.PassData, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            times[i++] = t;
+        }        
+
+        int totalFee = 0;
+
+        bool first = true;
+        int fee = 0, tempFee = 0;
+        int day = 0;
+        int month = 0;
+        int secs = 0, tempSecs = 0;
+
+        foreach (DateTime date in times)
+        {
+            // save day and month to qpply rule of passing more than once within 60 minutes
+            // (assuming year is always the same)
+            if (first == false)
+            {
+                if (day == date.Day && month == date.Month && fee != 0)
+                {
+                    tempSecs = date.Hour * 3600 + date.Minute * 60 + date.Second;
+                    if ((tempSecs - secs) >= 00 && (tempSecs - secs) < 3600)
+                    {
+                        tempFee = GetTollFee(date, theVehicle);
+                        fee = tempFee > fee ? fee : tempFee;
+                    }
+                    else
+                        fee = GetTollFee(date, theVehicle);
+                }
+                else
+                {
+                    fee = GetTollFee(date, theVehicle);
+                }
+                day = date.Day;
+                month = date.Month;
+                secs = date.Hour * 3600 + date.Minute * 60 + date.Second;
+                totalFee += fee;
+            }
+            else
+            {
+                day = date.Day;
+                month = date.Month;
+                secs = date.Hour * 3600 + date.Minute * 60 + date.Second;
+                fee = GetTollFee(date, theVehicle);
+                totalFee += fee;
+                first = false;
+            }
+        }
+        if (totalFee > 60) totalFee = 60;
+        return totalFee;
+    }
+
     private static bool IsTollFreeVehicle(Vehicle vehicle)
     {
         if (vehicle == null) return false;
@@ -72,9 +202,9 @@ public static class CongestionTaxCalculator
                vehicleType.Equals(TollFreeVehicles.Military.ToString());
     }
 
-    public static int GetTollFee(DateTime date, Vehicle vehicle)
+    private static int GetTollFee(DateTime date, Vehicle vehicle)
     {
-        if (IsTollFreeDate(date) || IsTollFreeVehicle(vehicle)) return 0;
+        if (IsTollFreeDate(date)) return 0;
 
         int time = date.Hour * 3600 + date.Minute * 60 + date.Second;
 
